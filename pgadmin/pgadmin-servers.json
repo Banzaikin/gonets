@@ -1,0 +1,15 @@
+{
+  "Servers": {
+    "Postgres Container": {
+      "Name": "Postgres Container",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "common_db",
+      "Username": "admin",
+      "SSLMode": "prefer",
+      "PassFile": "/pgpass",
+      "ConnectNow": true
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "profiles": {
+    "AudioService": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      },
+      "applicationUrl": "https://localhost:53097;http://localhost:53101"
+    }
+  }
+}

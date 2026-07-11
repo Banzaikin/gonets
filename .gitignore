@@ -1,0 +1,8 @@
+**/bin/
+**/obj/
+**/TempAudio/
+.vs
+certs
+**/lastProcessedFile.txt
+**/inbox_state.txt
+**/sentbox_state.txt
