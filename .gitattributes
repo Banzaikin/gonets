@@ -1,0 +1,3 @@
+**/lpcnet_demo text eol=lf
+**/wait-for-it.sh text eol=lf
+monitor.sh text eol=lf

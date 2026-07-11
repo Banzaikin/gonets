@@ -1,0 +1,347 @@
+networks:
+  app_network:
+    driver: bridge
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    hostname: postgres
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: common_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    networks:
+      - app_network
+    restart: unless-stopped
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@example.com
+      PGADMIN_DEFAULT_PASSWORD: admin
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./pgadmin/pgadmin-servers.json:/pgadmin4/servers.json:ro
+      - ./pgadmin/.pgpass:/pgpass:ro
+    depends_on:
+      - postgres
+    networks:
+      - app_network
+    restart: unless-stopped
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    hostname: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: admin
+      RABBITMQ_DEFAULT_PASS: password
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - app_network
+    restart: unless-stopped
+
+  certbot:
+    image: alpine
+    volumes:
+      - ./certs:/etc/letsencrypt
+    command: >
+      sh -c "apk add --no-cache openssl &&
+
+      mkdir -p /etc/letsencrypt/live/commonbackend &&
+      openssl req -x509 -nodes -days 365 -newkey rsa:2048
+      -keyout /etc/letsencrypt/live/commonbackend/privkey.pem
+      -out /etc/letsencrypt/live/commonbackend/fullchain.pem
+      -subj '/CN=commonbackend' &&
+      openssl pkcs12 -export
+      -out /etc/letsencrypt/commonbackend.pfx
+      -inkey /etc/letsencrypt/live/commonbackend/privkey.pem
+      -in /etc/letsencrypt/live/commonbackend/fullchain.pem
+      -passout pass:password &&
+
+      mkdir -p /etc/letsencrypt/live/audioservice &&
+      openssl req -x509 -nodes -days 365 -newkey rsa:2048
+      -keyout /etc/letsencrypt/live/audioservice/privkey.pem
+      -out /etc/letsencrypt/live/audioservice/fullchain.pem
+      -subj '/CN=audioservice' &&
+      openssl pkcs12 -export
+      -out /etc/letsencrypt/audioservice.pfx
+      -inkey /etc/letsencrypt/live/audioservice/privkey.pem
+      -in /etc/letsencrypt/live/audioservice/fullchain.pem
+      -passout pass:password &&
+
+      mkdir -p /etc/letsencrypt/live/clientbackend &&
+      openssl req -x509 -nodes -days 365 -newkey rsa:2048
+      -keyout /etc/letsencrypt/live/clientbackend/privkey.pem
+      -out /etc/letsencrypt/live/clientbackend/fullchain.pem
+      -subj '/CN=clientbackend' &&
+      openssl pkcs12 -export
+      -out /etc/letsencrypt/clientbackend.pfx
+      -inkey /etc/letsencrypt/live/clientbackend/privkey.pem
+      -in /etc/letsencrypt/live/clientbackend/fullchain.pem
+      -passout pass:password &&
+
+      mkdir -p /etc/letsencrypt/live/operatorbackend &&
+      openssl req -x509 -nodes -days 365 -newkey rsa:2048
+      -keyout /etc/letsencrypt/live/operatorbackend/privkey.pem
+      -out /etc/letsencrypt/live/operatorbackend/fullchain.pem
+      -subj '/CN=operatorbackend' &&
+      openssl pkcs12 -export
+      -out /etc/letsencrypt/operatorbackend.pfx
+      -inkey /etc/letsencrypt/live/operatorbackend/privkey.pem
+      -in /etc/letsencrypt/live/operatorbackend/fullchain.pem
+      -passout pass:password &&
+
+      mkdir -p /etc/letsencrypt/live/internetservice &&
+      openssl req -x509 -nodes -days 365 -newkey rsa:2048
+      -keyout /etc/letsencrypt/live/internetservice/privkey.pem
+      -out /etc/letsencrypt/live/internetservice/fullchain.pem
+      -subj '/CN=internetservice' &&
+      openssl pkcs12 -export
+      -out /etc/letsencrypt/internetservice.pfx
+      -inkey /etc/letsencrypt/live/internetservice/privkey.pem
+      -in /etc/letsencrypt/live/internetservice/fullchain.pem
+      -passout pass:password &&
+
+      mkdir -p /etc/letsencrypt/live/radioservice &&
+      openssl req -x509 -nodes -days 365 -newkey rsa:2048
+      -keyout /etc/letsencrypt/live/radioservice/privkey.pem
+      -out /etc/letsencrypt/live/radioservice/fullchain.pem
+      -subj '/CN=radioservice' &&
+      openssl pkcs12 -export
+      -out /etc/letsencrypt/radioservice.pfx
+      -inkey /etc/letsencrypt/live/radioservice/privkey.pem
+      -in /etc/letsencrypt/live/radioservice/fullchain.pem
+      -passout pass:password &&
+
+      mkdir -p /etc/letsencrypt/live/frontend &&
+      openssl req -x509 -nodes -days 365 -newkey rsa:2048
+      -keyout /etc/letsencrypt/live/frontend/privkey.pem
+      -out /etc/letsencrypt/live/frontend/fullchain.pem
+      -subj '/CN=frontend'"
+    networks:
+      - app_network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        VITE_MAIN_ENV: production
+        VITE_API_BASE_URL: ""
+        VITE_WS_URL: ""
+    environment:
+      VITE_MAIN_ENV: production
+      VITE_API_BASE_URL: ""
+      VITE_WS_URL: ""
+    volumes:
+      - ./certs:/etc/nginx/certs:ro
+    ports:
+      - "443:443"
+      - "80:80"
+    depends_on:
+      - commonbackend
+    networks:
+      - app_network
+    restart: unless-stopped
+
+  commonbackend:
+    hostname: commonbackend
+    build:
+      context: ./CommonBackend
+      args:
+        ASPNETCORE_ENVIRONMENT: Docker
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: "https://+:5001;http://+:5000"
+      ASPNETCORE_Kestrel__Certificates__Default__Path: /https/commonbackend.pfx
+      ASPNETCORE_Kestrel__Certificates__Default__Password: password
+    volumes:
+      - ./certs:/https:ro
+    ports:
+      - "5000:5000"
+      - "5001:5001"
+    depends_on:
+      - rabbitmq
+      - postgres
+      - certbot
+    networks:
+      - app_network
+    restart: unless-stopped
+
+  audioservice:
+    build:
+      context: ./AudioService
+      args:
+        ASPNETCORE_ENVIRONMENT: Docker
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: "http://+:8000;https://+:8001"
+      ASPNETCORE_Kestrel__Certificates__Default__Path: /https/audioservice.pfx
+      ASPNETCORE_Kestrel__Certificates__Default__Password: password
+    volumes:
+      - ./certs:/https:ro
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    networks:
+      - app_network
+    restart: unless-stopped
+
+  communicationorchestrator:
+    build:
+      context: .
+      dockerfile: ./CommunicationOrchestrator/Dockerfile
+      args:
+        ASPNETCORE_ENVIRONMENT: Docker
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      DOTNET_ENVIRONMENT: Docker
+    depends_on:
+      - rabbitmq
+    networks:
+      - app_network
+    restart: unless-stopped
+
+  internetservice:
+    hostname: internetservice
+    build:
+      context: .
+      dockerfile: ./InternetService/Dockerfile
+      args:
+        ASPNETCORE_ENVIRONMENT: Docker
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: "http://+:7030;https://+:7031"
+      ASPNETCORE_Kestrel__Certificates__Default__Path: /https/internetservice.pfx
+      ASPNETCORE_Kestrel__Certificates__Default__Password: password
+    volumes:
+      - ./certs:/https:ro
+    ports:
+      - "7030:7030"
+      - "7031:7031"
+    depends_on:
+      - rabbitmq
+      - certbot
+    networks:
+      - app_network
+    restart: unless-stopped
+
+  radioservice:
+    hostname: radioservice
+    build:
+      context: .
+      dockerfile: ./RadioService/Dockerfile
+      args:
+        ASPNETCORE_ENVIRONMENT: Docker
+    environment:
+      ASPNETCORE_ENVIRONMENT: Docker
+      ASPNETCORE_URLS: "http://+:7020;https://+:7021"
+      ASPNETCORE_Kestrel__Certificates__Default__Path: /https/radioservice.pfx
+      ASPNETCORE_Kestrel__Certificates__Default__Password: password
+    volumes:
+      - ./certs:/https:ro
+      - /dev:/dev
+    devices:
+      - "/dev/ttyACM0:/dev/ttyACM0"
+      - "/dev/ttyUSB0:/dev/ttyUSB0"
+      - "/dev/ttyUSB1:/dev/ttyUSB1"
+      - "/dev/ttyUSB2:/dev/ttyUSB2"
+      - "/dev/ttyUSB3:/dev/ttyUSB3"
+      - "/dev/snd:/dev/snd"
+    privileged: true
+    ports:
+      - "7020:7020"
+      - "7021:7021"
+      - "8515:8515"
+      - "8520:8520"
+    depends_on:
+      - rabbitmq
+      - certbot
+    networks:
+      - app_network
+    restart: unless-stopped
+
+  gpspublisherservice:
+    hostname: gpspublisherservice
+    build:
+      context: .
+      dockerfile: ./GpsPublisherService/Dockerfile
+      args:
+        DOTNET_ENVIRONMENT: Docker
+    environment:
+      DOTNET_ENVIRONMENT: Docker
+    depends_on:
+      - rabbitmq
+    networks:
+      - app_network
+    volumes:
+      - ./certs:/https:ro
+      - /dev:/dev
+    devices:
+      - "/dev/ttyACM0:/dev/ttyACM0"
+      - "/dev/ttyACM1:/dev/ttyACM1"
+      - "/dev/ttyUSB0:/dev/ttyUSB0"
+      - "/dev/ttyUSB1:/dev/ttyUSB1"
+    privileged: true
+    restart: unless-stopped
+
+
+  # clientbackend:
+  #   build:
+  #     context: ./ClientBackend
+  #     args:
+  #       ASPNETCORE_ENVIRONMENT: Docker
+  #   environment:
+  #     ASPNETCORE_ENVIRONMENT: Docker
+  #     ASPNETCORE_URLS: "http://+:7000;https://+:7001"
+  #     ASPNETCORE_Kestrel__Certificates__Default__Path: /https/clientbackend.pfx
+  #     ASPNETCORE_Kestrel__Certificates__Default__Password: password
+  #   volumes:
+  #     - ./certs:/https:ro
+  #   ports:
+  #     - "7000:7000"
+  #     - "7001:7001"
+  #   depends_on:
+  #     - rabbitmq
+  #     - certbot
+  #   networks:
+  #     - app_network
+  #   restart: unless-stopped
+
+  # operatorbackend:
+  #   build:
+  #     context: ./OperatorBackend
+  #     args:
+  #       ASPNETCORE_ENVIRONMENT: Docker
+  #   environment:
+  #     ASPNETCORE_ENVIRONMENT: Docker
+  #     ASPNETCORE_URLS: "http://+:7010;https://+:7011"
+  #     ASPNETCORE_Kestrel__Certificates__Default__Path: /https/operatorbackend.pfx
+  #     ASPNETCORE_Kestrel__Certificates__Default__Password: password
+  #   volumes:
+  #     - ./certs:/https:ro
+  #   ports:
+  #     - "7010:7010"
+  #     - "7011:7011"
+  #   depends_on:
+  #     - rabbitmq
+  #     - certbot
+  #   networks:
+  #     - app_network
+  #   restart: unless-stopped
+
+volumes:
+  pgdata:
+  rabbitmq_data:
+  pgadmin_data:
